@@ -317,7 +317,7 @@ def addTPTStep(testObj, line, signals, missingSignals):
         if len(signals) > 0:
 
             # Add the function to the test body
-            testObj.append(f"{f_interface} {sigID} == {f_arg}")
+            testObj.append(f"{f_interface} {signals[sigID]} == {f_arg}")
 
         else:
             if sigID not in missingSignals:
@@ -346,6 +346,8 @@ def addTPTStep(testObj, line, signals, missingSignals):
 
 def write_TCtoFile(test_name, test_obj, output_path):
 
+    test_obj = sortTest(test_obj)
+
     filename = f"{output_path}/{test_name}.TPTTest"
     
 #     f = open(f"{test_name}.TPTTest", "a")
@@ -358,3 +360,54 @@ def write_TCtoFile(test_name, test_obj, output_path):
 
     f.close()
 
+def sortTest(test_obj):
+    ''' This is necessary because in TPT, the Wait step must come after the Compare step, while in Emulator, it's the other way around.
+        So this function makes sure that the Wait will always be placed after the Compare'''
+
+    i = 0 
+
+    # Search through all elements in the test list
+    while i < len(test_obj):
+        
+    #     print(f"i={i}")
+        
+        if 'Wait' in test_obj[i]:
+
+    #         print(f"found {test_obj[i]} at pos {i}")
+
+            slice_test_obj=test_obj[i+1:]
+
+    #         print(f"slice_test_obj={slice_test_obj}")
+
+            # Find the last 'Check' from the next chunck of 'Checks'
+            j = 1
+            
+            while j < len(slice_test_obj):
+                
+    #             print(f"i={i}")
+    #             print(f"j={j}")
+    #             print(f"{slice_test_obj[j]} at pos {i+j}")
+                
+                if 'Compare' in slice_test_obj[j]:
+
+                    j += 1
+                    continue
+                
+                else:
+                    
+                    break
+
+    #         print(f"insert at pos {i+j}, from pos {i}")
+
+            # Insert initialy found 'Wait' step at position i+j and remove it from position i
+            test_obj.insert(i+j, test_obj.pop(i))
+            
+    #         print(f"new list={test_obj}")
+
+            # Continue search from position i+j (ie. from where the 'Wait' was inserted)
+            i = i+j+1
+        
+        else:
+            i += 1
+            
+    return test_obj
