@@ -11,47 +11,48 @@ class Application(tk.Frame):
 
         super().__init__(master)
         self.master = master
+        self.signals = {}
+        self.missingSignals = []
+
         self.pack()
         self.create_widgets()
 
+
     def create_widgets(self):
         
-        self.field_selOutputPath = tk.Entry()
-        # self.but_confirmPath = tk.Button(text="Confirm path", command=self.read_outputPath)
+        self.field_selOutputPath = tk.Entry()        
         self.read_outputPath()
-
-        self.but_selTestSpec = tk.Button(text="Select Test Specification file (*.md)", command=self.read_testSpec)
-
-
+        self.but_selTestSpec = tk.Button(text="Select Test Specification file (*.md)", command=self.read_testSpec, height=3, width=35, justify='center', relief='raised' )
         self.but_selTestSpec.pack()
-        # self.field_selOutputPath.pack()
-        # self.but_confirmPath.pack()
+
 
     def read_testSpec(self):
 
         self.filename = fd.askopenfilename()
-        self.parse_testSpec(self.filename)
-        
-        self.signals = {}
-        self.missingSignals = []
 
-        # Call the function with empty argument
-        self.parse_testSteps(self.signals, self.missingSignals)
+        # Extract testcases from file and store them in an array
+        self.parse_testSpec()
 
-        # print("Following signals must be defined")
-        # pp.pprint(self.missingSignals)
-
-        self.populate_signalsInterfaces(self.missingSignals)
+        # First call: for extracting missing signals
+        self.parse_testSteps()
 
         # Ask user to populate signal-interface list
+        self.populate_signalsInterfaces()
 
-        # Call the function with non-empty argument
-        self.parse_testSteps(self.signals, self.missingSignals)
+        # Second call: for creating the test objects
+        self.parse_testSteps()
+
+        response = tk.messagebox.showinfo(title="Done", message="Testcase generation completed. Check output path")
+
+        print("response =" + response)
+
+        if response == 'ok':
+            self.frame.destroy()
+
+
 
 
     def read_outputPath(self):
-
-        # self.outputPath = self.field_selOutputPath.get()
         
         self.outputPath = sd.askstring(title="Output Path", prompt="Enter output path")
         
@@ -63,27 +64,27 @@ class Application(tk.Frame):
 
 
 
-        
-        # print(f"outputPath = {self.outputPath}")
+    def parse_testSpec(self):     
 
-    def parse_testSpec(self, filename):     
-
-        with open(filename, 'r') as reader:
-            print(f"file {filename} opened")
+        with open(self.filename, 'r') as reader:
+            print(f"file {self.filename} opened")
             testFound = -1
             data = reader.readlines()
             self.TC_list = []
             for line in data:
+                # print(line)
                 isFound = H.isHeaderType(0, line)
                 if isFound:
+                    # print("test found")
                     testFound = testFound + 1
                     self.TC_list.append([line])
                 else:
+                    # print("test step")
                     if testFound > -1:
                         self.TC_list[testFound].append(line)
             # pp.pprint(self.TC_list)
 	
-    def parse_testSteps(self, signals, missingSignals):
+    def parse_testSteps(self):
 
         for TC in self.TC_list:
     
@@ -110,6 +111,7 @@ class Application(tk.Frame):
                 # Check if Preconditions part is found 
                 if H.isHeaderType(1, line):
                     
+                    print("preconditions found")
                     # Set flags
                     test_precondFound = True
                     
@@ -118,6 +120,7 @@ class Application(tk.Frame):
                 # Check if Test Description part is found 
                 if H.isHeaderType(2, line):
                     
+                    print("test Description found")
                     # Set flags
                     test_descrFound = True
                     test_precondFound = False
@@ -127,35 +130,37 @@ class Application(tk.Frame):
                 if test_descrFound:
                     
                     # add a step of type 1 (test step) in the C body
-                    H.addTPTStep(1, test_obj, line, signals, missingSignals)
+                    H.addTPTStep(test_obj, line, self.signals, self.missingSignals)
                     
                     continue            
                     
                 if test_precondFound:
                     
                     # add a step of type 0 (precondition) in the C body
-                    H.addTPTStep(0, test_obj, line, signals, missingSignals)
+                    H.addTPTStep(test_obj, line, self.signals, self.missingSignals)
                     
                     continue
-
-            H.write_TCtoFile(test_name, test_obj, self.outputPath)
+            
+            if len(self.signals) > 0:
+                print("write here")
+                H.write_TCtoFile(test_name, test_obj, self.outputPath)
                         
 
-    def populate_signalsInterfaces(self, missingSignals):
+    def populate_signalsInterfaces(self):
 
-        for signal in missingSignals:
+        for signal in self.missingSignals:
 
             signInput = sd.askstring(title="Input Interface", prompt=signal)
             self.signals[signal] = signInput
 
+        print("signals list")
         pp.pprint(self.signals)
 
-    # H.write_TCtoFile(test_name, test_obj)
 
 
 
 
 root = tk.Tk()
-root.geometry('500x500')
+root.geometry('300x300')
 app = Application(master=root)
 app.mainloop()

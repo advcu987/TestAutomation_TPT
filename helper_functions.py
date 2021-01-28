@@ -1,8 +1,12 @@
 import re
 import operator
 
-header_patterns = [r'> ### ', r'Pre-condition', r'Test procedure']
+header_patterns = [[r'> ### ', r'>### '], 
+                  [r'Pre-condition', r'Precondition'], 
+                  [r'Test procedure']]
 
+arg_patterns = ['to', '=', 'for']
+                
 
 constants = {'INACTIVE' : 0, 
              'ACTIVE' : 1, 
@@ -80,51 +84,88 @@ def is_number(s):
     except ValueError:
         return False
 
+def searchPattern(line):
+
+    # for pattern in arg_patterns:
+    #     m = re.search(f'{pattern} (.+?)', line)
+
+    #     if m:
+    #         return m
+    # return None
+
+    # Parse the line looking for numbers of characters used in numerical expressions
+    newstr = ''.join((ch if ch in '0123456789.-' else ' ') for ch in line)
+    
+    listOfNumbers = []
+
+    for i in newstr.split():
+        
+        # The try/except is necessary to filter out cases like | - |
+        try:
+            listOfNumbers.append(float(i))
+        except:
+            continue
+
+    return listOfNumbers
 
 def extractArg(type, line):
     
-    if type == 'Set':
-        m = re.search('to (.+?) ', line)
-    elif type == 'Check':
-        m = re.search('` = (.+?) ', line)
+    # In case of a Check statement, search in the third column
+    # eg: "| 1. | Set signal value of `PWM control slew` = -1 | - |"
+    #        1                       2                          3
+
+    if type == 'Check':
+        m = searchPattern(line.split("|")[3])
+
+    # In case of other statement types (Set, Run, etc), search in the second column
+    else:
+        m = searchPattern(line.split("|")[2])
        
-    if m:
-        arg = m.group(1)
+    if len(m) > 0:
+
+        if len(m) == 1:
+
+            return m[0]
         
-        if is_number(arg):
-            return arg
-        else:        
+        else:    
+            # TODO this is bullshit
+            # This is a workaround for the case where there is a number found in the name of the signal
+            # Return the second number
+            return m[1]
+            pass
+
+            #TODO
             # Check if there is an expression
-            args = re.split('\+|\-|\/|\*|\%', arg)
+            # args = re.split('\+|\-|\/|\*|\%', arg)
 
-            if len(args) > 1:
-                for char in arg:
-                    if not(char.isalnum()):
-                        op = operators[char]
-                        break
+            # if len(args) > 1:
+            #     for char in arg:
+            #         if not(char.isalnum()):
+            #             op = operators[char]
+            #             break
 
-                try:
-                    print(f"arg1 = {args}")
-                    arg1 = float(args[0])
-                except ValueError:
-                    arg1 = constants[args[0]]
+            #     try:
+            #         print(f"arg1 = {args}")
+            #         arg1 = float(args[0])
+            #     except ValueError:
+            #         arg1 = constants[args[0]]
 
-                try:
-                    arg2 = float(args[1])
-                except ValueError:
-                    arg2 = constants[args[1]]
+            #     try:
+            #         arg2 = float(args[1])
+            #     except ValueError:
+            #         arg2 = constants[args[1]]
 
-                return str(op(arg1,arg2))
+            #     return str(op(arg1,arg2))
 
-            else:
-                # Convert the extracted string to a number, if possible
-                try:
-                    arg = float(arg)
-                except ValueError:
-                    # Use the dictionary values
-                    arg = constants[arg]
+            # else:
+            #     # Convert the extracted string to a number, if possible
+            #     try:
+            #         arg = float(arg)
+            #     except ValueError:
+            #         # Use the dictionary values
+            #         arg = constants[arg]
 
-                return str(arg)
+            #     return str(arg)
 
     # Argument value was not found
     return None
@@ -143,6 +184,9 @@ def extractFuncType(line):
     
     elif 'Run ' in line:
         return 'Run'
+
+    elif '>> | >>>>' in line:
+        return 'Comment'
     
     else:
         return None
@@ -150,13 +194,16 @@ def extractFuncType(line):
     
 def isHeaderType(htype, line):
     
-    # Search the required pattern
-    p1 = re.search(header_patterns[htype], line)
-    
-    if p1:
-        return True
-    else:
-        return False
+    # Check all possible patterns of type htype (0,1,..)
+    for pattern in header_patterns[htype]:
+
+        # Search the required pattern
+        p1 = re.search(pattern, line)
+        
+        if p1:
+            return True
+    # No pattern found, exit
+    return False
     
     
 def init_Test(testname):
@@ -178,14 +225,16 @@ def extractSignalID(line):
     return m[1]
     
     
-def addTPTStep(stype, testObj, line, signals, missingSignals):
+def addTPTStep(testObj, line, signals, missingSignals):
 
-# First, add printf 
-    comment = re.split('\|', line)
-    comment = '"' + comment[1] + comment[2] + '"'
+    # First, add printf 
+    # comment = re.split('\|', line)
+    # comment = '"' + comment[1] + comment[2] + '"'
 
-    testObj.append(f"// {comment[1:-1]}")
+    # testObj.append(f"// {comment[1:-1]}")
     
+    # print(line)
+
     if 'substeps' in line:
         return None
 
@@ -201,8 +250,12 @@ def addTPTStep(stype, testObj, line, signals, missingSignals):
 
         f_interface = commands['Run']
 
-        # Call the needed function
-        testObj.append(f_interface + " 0.1")
+        if len(signals) > 0:
+
+            # Add the function to the test body
+            testObj.append(f_interface + " 0.1")
+
+        return None
 
     elif func_type == 'Set':
 
@@ -223,16 +276,26 @@ def addTPTStep(stype, testObj, line, signals, missingSignals):
 
 
         # Extract function argument
-        f_arg = extractArg('Set', line)
+        f_arg = str(extractArg('Set', line))
         
-        try:
-            # Call the needed function
+
+        if len(signals) > 0:
+
+            # print(f"error here: {signals[sigID]}")
+            # print(f"error here: {f_interface}")
+            # print(f"error here: {f_arg}")
+
+            # Add the function to the test body
             testObj.append(f_interface + " " + signals[sigID] + " to " + f_arg)
-        except:
+        else:
+
+            # Add the signal to the missingSignals list
             if sigID not in missingSignals:
                 missingSignals.append(sigID)
-                return None
-        
+            
+        return None
+
+
     elif func_type == 'Check':
 
         sigID = extractSignalID(line)
@@ -251,15 +314,32 @@ def addTPTStep(stype, testObj, line, signals, missingSignals):
 
 #         print(f"f_interface = {f_interface}")
 
-        try:
-            # Call the needed function
+        if len(signals) > 0:
+
+            # Add the function to the test body
             testObj.append(f"{f_interface} {sigID} == {f_arg}")
-        except:
+
+        else:
             if sigID not in missingSignals:
                 missingSignals.append(sigID)
-                return None
+            
+        return None
+
+    elif func_type == "Comment":
+
+        if len(signals) > 0:
+            # testObj.append(line)
+
+            # First, add printf 
+            comment = re.split('\|', line)
+            comment = '"' + comment[2] + '"'
+
+            testObj.append(f"// {comment[1:-1]}")
+        
+        return None
 
     else:
+        print(line)
         print(f" Incorrect function type found <<{func_type}>>. Probably incorrectly formatted test step.")
 
     return None
