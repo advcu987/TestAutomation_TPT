@@ -44,12 +44,6 @@ class Application(tk.Frame):
 
         response = tk.messagebox.showinfo(title="Done", message="Testcase generation completed. Check output path")
 
-        print("response =" + response)
-
-        if response == 'ok':
-            self.frame.destroy()
-
-
 
 
     def read_outputPath(self):
@@ -112,6 +106,8 @@ class Application(tk.Frame):
                 if H.isHeaderType(1, line):
                     
                     print("preconditions found")
+
+                    test_obj.append(f"// *** PRECONDITIONS ***")
                     # Set flags
                     test_precondFound = True
                     
@@ -121,6 +117,8 @@ class Application(tk.Frame):
                 if H.isHeaderType(2, line):
                     
                     print("test Description found")
+
+                    test_obj.append(f"// *** TEST PROCEDURE ***")
                     # Set flags
                     test_descrFound = True
                     test_precondFound = False
