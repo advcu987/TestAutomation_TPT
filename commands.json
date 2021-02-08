@@ -1,0 +1,43 @@
+{
+    "commands": [
+        {
+            "description": "Set signal X to value Y",
+            "test_spec_sintax": "Set signal `X` to Y"
+        },
+
+        {
+            "description": "Set signal status of X to value Y",
+            "test_spec_sintax": "Set signal status of `X` to Y"
+        },
+        
+        {
+            "description": "Ramp signal X to value Y with gradient Z/s",
+            "test_spec_sintax": "Ramp `X` to Y with Z/s"
+        }, 
+        
+        {
+            "description": "Check signal X has value Y",
+            "test_spec_sintax": "Check value of `X` = Y"
+        },
+
+        {
+            "description": "Wait for default time step",
+            "test_spec_sintax": "Run the component in cyclic run mode"
+        },
+
+        {
+            "description": "Wait for X s",
+            "test_spec_sintax": "Run the component for X s"
+        },
+
+        {
+            "description": "Wait until signal X reaches value Y",
+            "test_spec_sintax": "Run component until `X` = Y"
+        },
+
+        {
+            "description": "Comment text",
+            "test_spec_sintax": "| >> | >>>> Comment text <<<< | << |"
+        }
+    ]
+}
