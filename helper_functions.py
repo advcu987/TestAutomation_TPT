@@ -25,6 +25,7 @@ commands = {}
 commands['Set'] = 'Set'
 commands['Check'] = 'Compare'
 commands['Run'] = 'Wait'
+commands['Ramp'] = 'Ramp'
 
 
 def populate_InterfaceDict(compName):
@@ -132,7 +133,11 @@ def extractArg(type, line):
             # This is a workaround for the case where there is a number found in the name of the signal
             # Return the second number
             return m[1]
-            pass
+    else:
+        # No argument was found
+        # This is a problem for Set, but OK for Run
+        return None
+            
 
             #TODO
             # Check if there is an expression
@@ -223,14 +228,22 @@ def extractSignalID(line):
     m = re.split(r'`', line)
     
     return m[1]
-    
+
+def extract_TestName(line):
+    '''
+    Note: The test name must be in format: >### **test_name**
+    In this case, the function will return 'test_name'
+    '''
+    print(f"test name line: {line}")
+    m = re.split(r'\*\*',line)
+
+    return m[1]
     
 def addTPTStep(testObj, line, signals, missingSignals):
 
     # First, add printf 
     # comment = re.split('\|', line)
     # comment = '"' + comment[1] + comment[2] + '"'
-
     # testObj.append(f"// {comment[1:-1]}")
     
     # print(line)
@@ -249,24 +262,37 @@ def addTPTStep(testObj, line, signals, missingSignals):
     if func_type == 'Run':
 
         f_interface = commands['Run']
+        
+        # Extract the argument (default or defined period)
+        f_arg = str(extractArg(func_type, line))
 
         if len(signals) > 0:
 
-            # Add the function to the test body
-            testObj.append(f_interface + " 0.1")
+            if f_arg is not None:
+
+                # Add the function to the test body
+                testObj.append(f"{f_interface} {f_arg}")
+
+            else:
+
+                # Add the function to the test body
+                testObj.append(f"{f_interface} 0.1")
 
         return None
 
     elif func_type == 'Set':
 
+        # Initialize empty string for signal type.
+        sig_type = ""
+        
         # Check if status or value is set
         # This will return: 'status', 'value'
         if re.search(r'status', line):
-            func_type = 'SetStatus'
-        if re.search(r'value', line):
-            sig_type = 'value'
+            sig_type = ' status'
 
-        sigID = extractSignalID(line).lower()
+        # Extract signal name. If it's a status, the tag will be added to the name. If it's value, empty tag is added.
+        # eg. sigID = 'remote control mode status'
+        sigID = extractSignalID(line).lower() + sig_type
 
         try:
             # Get interface name from the commands dictionary
@@ -277,8 +303,8 @@ def addTPTStep(testObj, line, signals, missingSignals):
 
         # Extract function argument
         f_arg = str(extractArg('Set', line))
-        
 
+        # Check if the signals list was already populated.
         if len(signals) > 0:
 
             # print(f"error here: {signals[sigID]}")
@@ -287,6 +313,7 @@ def addTPTStep(testObj, line, signals, missingSignals):
 
             # Add the function to the test body
             testObj.append(f_interface + " " + signals[sigID] + " to " + f_arg)
+                
         else:
 
             # Add the signal to the missingSignals list

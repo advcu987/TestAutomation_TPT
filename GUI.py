@@ -4,6 +4,8 @@ from tkinter import simpledialog as sd
 import helper_functions as H
 import xml.etree.ElementTree as ET
 import pprint as pp
+import json
+import os.path
 
 
 class Application(tk.Frame):
@@ -77,7 +79,8 @@ class Application(tk.Frame):
                     if testFound > -1:
                         self.TC_list[testFound].append(line)
             # pp.pprint(self.TC_list)
-	
+
+    
     def parse_testSteps(self):
 
         for TC in self.TC_list:
@@ -90,14 +93,14 @@ class Application(tk.Frame):
 
             
             # Extract the name of the testcase from the first line
-            test_name = TC[0][8:-3]
+            test_name = H.extract_TestName(TC[0])
             
             test_obj = H.init_Test(test_name)
             
             # Loop through all the lines in the testcase
             for line in TC:
 
-                # print(line)
+                print(line)
                 
                 if line == '\n':
                     continue
@@ -127,14 +130,12 @@ class Application(tk.Frame):
 
                 if test_descrFound:
                     
-                    # add a step of type 1 (test step) in the C body
                     H.addTPTStep(test_obj, line, self.signals, self.missingSignals)
                     
                     continue            
                     
                 if test_precondFound:
                     
-                    # add a step of type 0 (precondition) in the C body
                     H.addTPTStep(test_obj, line, self.signals, self.missingSignals)
                     
                     continue
@@ -146,13 +147,34 @@ class Application(tk.Frame):
 
     def populate_signalsInterfaces(self):
 
-        for signal in self.missingSignals:
+        # TODO: 
+        # 1.add handling for adding signals to already existing files
+        # 2.add handling for taking file name and path from user input
+        
+        # Check if the file already exists
+        if os.path.isfile("signals.json"):
+            
+            # Load the file and extract the signal dictionary
+            with open('signals.json', 'r') as json_file:
+                self.signals = json.load(json_file)
+                print(f"loaded signals: {self.signals}")
+        else:
+        
+            # Ask the user to input each signal
+            for signal in self.missingSignals:
 
-            signInput = sd.askstring(title="Input Interface", prompt=signal)
-            self.signals[signal] = signInput
+                signInput = sd.askstring(title="Input Interface", prompt=signal)
+                self.signals[signal] = signInput
 
-        print("signals list")
-        pp.pprint(self.signals)
+            print("signals list")
+            pp.pprint(self.signals)
+
+            # Dump the signal dictionary to a file
+            with open('signals.json', 'w') as file:
+                 file.write(json.dumps(self.signals)) # use `json.loads` to do the reverse
+                
+            print("Dumped signals to file signals.json.")
+
 
 
 
