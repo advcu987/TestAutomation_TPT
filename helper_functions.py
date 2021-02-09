@@ -26,6 +26,8 @@ commands['Set'] = 'Set'
 commands['Check'] = 'Compare'
 commands['Run'] = 'Wait'
 commands['Ramp'] = 'Ramp'
+commands['Run_until'] = 'Wait_until'
+commands['Comment'] = 'Comment'
 
 
 def populate_InterfaceDict(compName):
@@ -36,7 +38,7 @@ def populate_InterfaceDict(compName):
     interfaceDict['compName'] = compName
     
     with open(filename, 'r') as reader:
-        print(f'file {filename} opened')
+        print(f'DEBUG: file {filename} opened')
         data = reader.readlines()
         for line in data:
             # Extract info from the line
@@ -87,13 +89,6 @@ def is_number(s):
 
 def searchPattern(line):
 
-    # for pattern in arg_patterns:
-    #     m = re.search(f'{pattern} (.+?)', line)
-
-    #     if m:
-    #         return m
-    # return None
-
     # Parse the line looking for numbers of characters used in numerical expressions
     newstr = ''.join((ch if ch in '0123456789.-' else ' ') for ch in line)
     
@@ -118,20 +113,42 @@ def extractArg(type, line):
     if type == 'Check':
         m = searchPattern(line.split("|")[3])
 
-    # In case of other statement types (Set, Run, etc), search in the second column
+    # For Ramp, two arguments need to be extracted: "value" and "gradient"
+    elif type == 'Ramp':
+
+        m = searchPattern(line.split("|")[2])
+
+        if len(m) > 0:
+            
+            # Correct number of arguments found, return the tuple (value, gradient)
+            if len(m) == 2:
+                return (m[0], m[1])
+            # Correct number of arguments found, with number in signal name, return the tuple (value, gradient)
+            elif len(m) == 3:
+                return (m[1], m[2])
+            # Incorrect number of arguments found
+            else:
+                print(f"ERROR: Incorrect no. of arguments found for Ramp at line: {line}.")
+                return None
+            
+        else: 
+            # Error: Arguments not found
+            print(f"ERROR: No arguments found for Ramp at line: {line}.")
+            return None 
+        
+    # In case of other statement types (Set, Run, Run_until, etc), search in the second column
     else:
         m = searchPattern(line.split("|")[2])
        
     if len(m) > 0:
-
         if len(m) == 1:
-
             return m[0]
         
         else:    
-            # TODO this is bullshit
+            # TODO this is really really ugly
             # This is a workaround for the case where there is a number found in the name of the signal
-            # Return the second number
+            # For the 'Check', 'Set', 'Run' step types, return the second number
+            # For 'Ramp', it was returned in the branch (disgusting)
             return m[1]
     else:
         # No argument was found
@@ -180,18 +197,27 @@ def extractArg(type, line):
 def extractFuncType(line):
     
     # Check if the following keywords are found in the line, to determine the function type.
-    # Note: the space is needed, to exclude false positives like "settings", "checking", etc
-    if 'Set ' in line:
+    # Note: the space is needed, to exclude false positives like "settings", "checking", etc.
+    # Note2: Check comment first, since keywords might be present in a comment.
+    if '>> | >>>>' in line:
+        return 'Comment'
+    
+    elif 'Set ' in line:
         return 'Set'
         
     elif 'Check ' in line:
         return 'Check'
     
     elif 'Run ' in line:
-        return 'Run'
+        if 'until' in line:
+            return 'Run_until'
+        else:
+            return 'Run'
+    
+    elif 'Ramp' in line:
+        return 'Ramp'
+    
 
-    elif '>> | >>>>' in line:
-        return 'Comment'
     
     else:
         return None
@@ -207,6 +233,7 @@ def isHeaderType(htype, line):
         
         if p1:
             return True
+        
     # No pattern found, exit
     return False
     
@@ -220,10 +247,6 @@ def init_Test(testname):
     
 def extractSignalID(line):
     
-    # first extract the signal name (as it appears in the requirements)
-    # create a mapping of signal name - interface name
-    # return mapped value of signal name
-    
     # Split the line by commas
     m = re.split(r'`', line)
     
@@ -234,20 +257,20 @@ def extract_TestName(line):
     Note: The test name must be in format: >### **test_name**
     In this case, the function will return 'test_name'
     '''
-    print(f"test name line: {line}")
+#     print(f"DEBUG: test name line: {line}")
     m = re.split(r'\*\*',line)
 
     return m[1]
     
 def addTPTStep(testObj, line, signals, missingSignals):
 
-    # First, add printf 
-    # comment = re.split('\|', line)
-    # comment = '"' + comment[1] + comment[2] + '"'
-    # testObj.append(f"// {comment[1:-1]}")
+    sigID = ''
+    func_type = ''
+    f_interface = ''
+    f_arg = ''
+    sig_type = ''
+    f_grad = ''
     
-    # print(line)
-
     if 'substeps' in line:
         return None
 
@@ -255,13 +278,15 @@ def addTPTStep(testObj, line, signals, missingSignals):
     # This will return: 'set', 'check', 'run'
     func_type = extractFuncType(line)
 
-#     print(f"func_type = {func_type}")
-
+    try:
+        # Get function name from the commands dictionary
+        f_interface = commands[func_type]
+    except:
+        print(f"ERROR: Interface type not found for line {line}.")
+        f_interface = 'dummyInterface'
+    
     # Component cyclic run
-    # TODO: add argument check for defined period   
     if func_type == 'Run':
-
-        f_interface = commands['Run']
         
         # Extract the argument (default or defined period)
         f_arg = str(extractArg(func_type, line))
@@ -279,11 +304,29 @@ def addTPTStep(testObj, line, signals, missingSignals):
                 testObj.append(f"{f_interface} 0.1")
 
         return None
+    
+    elif func_type == 'Run_until':
+        
+         
+        sigID = extractSignalID(line).lower()
+        f_arg = extractArg(func_type, line)
 
+        # Check if the signals list was already populated.
+        if len(signals) > 0:
+
+            # Add the function to the test body
+            testObj.append(f"Wait until {signals[sigID]} == {f_arg}")
+                
+        else:
+
+            # Add the signal to the missingSignals list
+            if sigID not in missingSignals:
+                missingSignals.append(sigID)
+                            
+    
+    # SET step handling
     elif func_type == 'Set':
 
-        # Initialize empty string for signal type.
-        sig_type = ""
         
         # Check if status or value is set
         # This will return: 'status', 'value'
@@ -294,25 +337,14 @@ def addTPTStep(testObj, line, signals, missingSignals):
         # eg. sigID = 'remote control mode status'
         sigID = extractSignalID(line).lower() + sig_type
 
-        try:
-            # Get interface name from the commands dictionary
-            f_interface = commands['Set']
-        except:
-            f_interface = 'dummyInterface'
-
-
         # Extract function argument
-        f_arg = str(extractArg('Set', line))
+        f_arg = str(extractArg(func_type, line))
 
         # Check if the signals list was already populated.
         if len(signals) > 0:
 
-            # print(f"error here: {signals[sigID]}")
-            # print(f"error here: {f_interface}")
-            # print(f"error here: {f_arg}")
-
             # Add the function to the test body
-            testObj.append(f_interface + " " + signals[sigID] + " to " + f_arg)
+            testObj.append(f"{f_interface} {signals[sigID]} to {f_arg}")
                 
         else:
 
@@ -322,24 +354,11 @@ def addTPTStep(testObj, line, signals, missingSignals):
             
         return None
 
-
+    # CHECK step handling
     elif func_type == 'Check':
 
-        sigID = extractSignalID(line)
-
-#         print(f"sigID = {sigID}")
-
-        f_arg = extractArg('Check', line)
-
-#         print(f"f_arg = {f_arg}")
-
-        try:
-            # Get interface name from the interface dictionary
-            f_interface = commands['Check']
-        except:
-            f_interface = 'dummyInterface'
-
-#         print(f"f_interface = {f_interface}")
+        sigID = extractSignalID(line).lower()
+        f_arg = extractArg(func_type, line)
 
         if len(signals) > 0:
 
@@ -351,7 +370,28 @@ def addTPTStep(testObj, line, signals, missingSignals):
                 missingSignals.append(sigID)
             
         return None
+    
+    # RAMP step handling
+    elif func_type == "Ramp":
+            
+            sigID = extractSignalID(line).lower()
+            (f_arg, f_grad) = extractArg(func_type, line)
+                
+            # Check if the signals list was already populated.
+            if len(signals) > 0:
 
+                # Add the function to the test body
+                testObj.append(f"{f_interface} {signals[sigID]} to {f_arg} with {f_grad}/s")
+                
+            else:
+
+                # Add the signal to the missingSignals list
+                if sigID not in missingSignals:
+                    missingSignals.append(sigID)
+                
+                
+        
+    # COMMENT step handling
     elif func_type == "Comment":
 
         if len(signals) > 0:
@@ -367,7 +407,7 @@ def addTPTStep(testObj, line, signals, missingSignals):
 
     else:
         print(line)
-        print(f" Incorrect function type found <<{func_type}>>. Probably incorrectly formatted test step.")
+        print(f"ERROR: Incorrect function type found <<{func_type}>>. Probably incorrectly formatted test step.")
 
     return None
 
@@ -383,7 +423,7 @@ def write_TCtoFile(test_name, test_obj, output_path):
     for line in test_obj:    
         f.write(line + "\n")
 
-    print(f"Created test script {test_name}.TPTTest")
+    print(f"DEBUG: Created test script {test_name}.TPTTest")
 
     f.close()
 
@@ -396,25 +436,15 @@ def sortTest(test_obj):
     # Search through all elements in the test list
     while i < len(test_obj):
         
-    #     print(f"i={i}")
-        
         if 'Wait' in test_obj[i]:
 
-    #         print(f"found {test_obj[i]} at pos {i}")
-
             slice_test_obj=test_obj[i+1:]
-
-    #         print(f"slice_test_obj={slice_test_obj}")
 
             # Find the last 'Check' from the next chunck of 'Checks'
             j = 1
             
             while j < len(slice_test_obj):
-                
-    #             print(f"i={i}")
-    #             print(f"j={j}")
-    #             print(f"{slice_test_obj[j]} at pos {i+j}")
-                
+                          
                 if 'Compare' in slice_test_obj[j]:
 
                     j += 1
@@ -424,12 +454,8 @@ def sortTest(test_obj):
                     
                     break
 
-    #         print(f"insert at pos {i+j}, from pos {i}")
-
             # Insert initialy found 'Wait' step at position i+j and remove it from position i
             test_obj.insert(i+j, test_obj.pop(i))
-            
-    #         print(f"new list={test_obj}")
 
             # Continue search from position i+j (ie. from where the 'Wait' was inserted)
             i = i+j+1

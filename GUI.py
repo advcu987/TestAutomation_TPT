@@ -63,7 +63,7 @@ class Application(tk.Frame):
     def parse_testSpec(self):     
 
         with open(self.filename, 'r') as reader:
-            print(f"file {self.filename} opened")
+            print(f"DEBUG: file {self.filename} opened")
             testFound = -1
             data = reader.readlines()
             self.TC_list = []
@@ -100,7 +100,7 @@ class Application(tk.Frame):
             # Loop through all the lines in the testcase
             for line in TC:
 
-                print(line)
+#                 print(line)
                 
                 if line == '\n':
                     continue
@@ -108,7 +108,7 @@ class Application(tk.Frame):
                 # Check if Preconditions part is found 
                 if H.isHeaderType(1, line):
                     
-                    print("preconditions found")
+#                     print("DEBUG: preconditions found")
 
                     test_obj.append(f"// *** PRECONDITIONS ***")
                     # Set flags
@@ -119,7 +119,7 @@ class Application(tk.Frame):
                 # Check if Test Description part is found 
                 if H.isHeaderType(2, line):
                     
-                    print("test Description found")
+#                     print("DEBUG: test Description found")
 
                     test_obj.append(f"// *** TEST PROCEDURE ***")
                     # Set flags
@@ -141,7 +141,7 @@ class Application(tk.Frame):
                     continue
             
             if len(self.signals) > 0:
-                print("write here")
+#                 print("DEBUG: Write to file")
                 H.write_TCtoFile(test_name, test_obj, self.outputPath)
                         
 
@@ -157,7 +157,7 @@ class Application(tk.Frame):
             # Load the file and extract the signal dictionary
             with open('signals.json', 'r') as json_file:
                 self.signals = json.load(json_file)
-                print(f"loaded signals: {self.signals}")
+                print(f"DEBUG: loaded signals: {self.signals}")
         else:
         
             # Ask the user to input each signal
@@ -166,14 +166,14 @@ class Application(tk.Frame):
                 signInput = sd.askstring(title="Input Interface", prompt=signal)
                 self.signals[signal] = signInput
 
-            print("signals list")
+            print("DEBUG: signals list")
             pp.pprint(self.signals)
 
             # Dump the signal dictionary to a file
             with open('signals.json', 'w') as file:
                  file.write(json.dumps(self.signals)) # use `json.loads` to do the reverse
                 
-            print("Dumped signals to file signals.json.")
+            print("DEBUG: Dumped signals to file signals.json.")
 
 
 
