@@ -21,6 +21,11 @@
         },
 
         {
+            "description": "Check signal X has value Y with a tolerance of +/- Z",
+            "test_spec_sintax": "Check value of `X` = Y +/- Z"
+        },
+
+        {
             "description": "Wait for default time step",
             "test_spec_sintax": "Run the component in cyclic run mode"
         },
