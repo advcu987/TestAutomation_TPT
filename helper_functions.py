@@ -111,21 +111,18 @@ def extractArg(type, line):
     #        1                       2                          3
 
     if type == 'Check':
-        m = searchPattern(line.split("|")[3])
+        m = searchPattern(line)
 
     # For Ramp, two arguments need to be extracted: "value" and "gradient"
     elif type == 'Ramp':
 
-        m = searchPattern(line.split("|")[2])
+        m = searchPattern(line)
 
         if len(m) > 0:
             
             # Correct number of arguments found, return the tuple (value, gradient)
             if len(m) == 2:
                 return (m[0], m[1])
-            # Correct number of arguments found, with number in signal name, return the tuple (value, gradient)
-            elif len(m) == 3:
-                return (m[1], m[2])
             # Incorrect number of arguments found
             else:
                 print(f"ERROR: Incorrect no. of arguments found for Ramp at line: {line}.")
@@ -138,21 +135,13 @@ def extractArg(type, line):
         
     # In case of other statement types (Set, Run, Run_until, etc), search in the second column
     else:
-        m = searchPattern(line.split("|")[2])
+        m = searchPattern(line)
        
     if len(m) > 0:
-        if len(m) == 1:
-            return m[0]
-        
-        else:    
-            # TODO this is really really ugly
-            # This is a workaround for the case where there is a number found in the name of the signal
-            # For the 'Check', 'Set', 'Run' step types, return the second number
-            # For 'Ramp', it was returned in the branch (disgusting)
-            return m[1]
+        return m
     else:
         # No argument was found
-        # This is a problem for Set, but OK for Run
+        # This is a problem for Set, but OK for Run and some cases of Check (sig1 = sig2)
         return None
             
 
@@ -247,10 +236,23 @@ def init_Test(testname):
     
 def extractSignalID(line):
     
+    extracted_signals = []
+
     # Split the line by commas
     m = re.split(r'`', line)
     
-    return m[1]
+    # Copy the list to a new list
+    line_no_signals = m.copy()
+
+    # Extract signal list and 
+    # prepare a list that contains no signal names ( to be used when extracting numeric values)
+    for i in range(len(m)):
+        if i%2 != 0:
+            extracted_signals.append(m[i])
+            line_no_signals.remove(m[i])
+
+    # Return a tuple containing the signal names list and a line with signal names removed
+    return (extracted_signals, line_no_signals)
 
 def extract_TestName(line):
     '''
@@ -287,46 +289,54 @@ def addTPTStep(testObj, line, signals, missingSignals):
     
     # Component cyclic run
     if func_type == 'Run':
+
+        line = line.split("|")[2].lower()
         
         # Extract the argument (default or defined period)
-        f_arg = str(extractArg(func_type, line))
+        f_arg = extractArg(func_type, line)
 
         if len(signals) > 0:
 
             if f_arg is not None:
 
                 # Add the function to the test body
-                testObj.append(f"{f_interface} {f_arg}")
+                testObj.append(f"{f_interface} {f_arg[0]}ms")
 
             else:
 
                 # Add the function to the test body
-                testObj.append(f"{f_interface} 0.1")
+                testObj.append(f"{f_interface} 40ms")
 
         return None
     
     elif func_type == 'Run_until':
         
+        line = line.split("|")[2].lower()
          
-        sigID = extractSignalID(line).lower()
-        f_arg = extractArg(func_type, line)
+        (sigID, line_no_signals) = extractSignalID(line)
+
+        line_no_signals = "".join(line_no_signals)
+
+        f_arg = extractArg(func_type, line_no_signals)
 
         # Check if the signals list was already populated.
         if len(signals) > 0:
 
             # Add the function to the test body
-            testObj.append(f"Wait until {signals[sigID]} == {f_arg}")
+            testObj.append(f"Wait until {signals[sigID[0]]} == {f_arg[0]}")
                 
         else:
 
             # Add the signal to the missingSignals list
-            if sigID not in missingSignals:
-                missingSignals.append(sigID)
+            # Note: only add the first signal from the list of signals
+            if sigID[0] not in missingSignals:
+                missingSignals.append(sigID[0])
                             
     
     # SET step handling
     elif func_type == 'Set':
 
+        line = line.split("|")[2].lower()
         
         # Check if status or value is set
         # This will return: 'status', 'value'
@@ -335,59 +345,97 @@ def addTPTStep(testObj, line, signals, missingSignals):
 
         # Extract signal name. If it's a status, the tag will be added to the name. If it's value, empty tag is added.
         # eg. sigID = 'remote control mode status'
-        sigID = extractSignalID(line).lower() + sig_type
+        (sigID, line_no_signals) = extractSignalID(line)
+        sigID[0] = sigID[0] + sig_type
+
+        line_no_signals = "".join(line_no_signals)
 
         # Extract function argument
-        f_arg = str(extractArg(func_type, line))
+        f_arg = extractArg(func_type, line_no_signals)
 
         # Check if the signals list was already populated.
         if len(signals) > 0:
 
             # Add the function to the test body
-            testObj.append(f"{f_interface} {signals[sigID]} to {f_arg}")
+            testObj.append(f"{f_interface} {signals[sigID[0]]} to {f_arg[0]}")
                 
         else:
 
             # Add the signal to the missingSignals list
-            if sigID not in missingSignals:
-                missingSignals.append(sigID)
+            # Note: only add the first signal from the list of signals
+            if sigID[0] not in missingSignals:
+                missingSignals.append(sigID[0])
             
         return None
 
     # CHECK step handling
     elif func_type == 'Check':
 
-        sigID = extractSignalID(line).lower()
-        f_arg = extractArg(func_type, line)
+        # Initialize statement string
+        statement = ""
+
+        line = line.split("|")[3].lower()
+        
+        (sigID, line_no_signals) = extractSignalID(line)
+
+        # Transforms the list to a string, that can be searched (needed for extractArg) 
+        line_no_signals = "".join(line_no_signals)
+
+        f_arg = extractArg(func_type, line_no_signals)
 
         if len(signals) > 0:
 
-            # Add the function to the test body
-            testObj.append(f"{f_interface} {signals[sigID]} == {f_arg}")
+            # Statement form: "Check sig1 = sig2"
+            if len(sigID) == 2:
+                statement = f"{f_interface} {signals[sigID[0]]} == {signals[sigID[1]]}"
+
+                # Check if tolerance is specified
+                if "+/-" in line:
+                    statement = f"{statement} +/- {f_arg[0]}" 
+
+            # Statement form: "Check sig1 = val"
+            elif len(sigID) == 1:
+                statement = f"{f_interface} {signals[sigID[0]]} == {f_arg[0]}"
+
+                # Check if tolerance is specified
+                if "+/-" in line:
+                    statement = f"{statement} +/- {f_arg[1]}" 
+
+            else:
+                print(line)
+                print(f"ERROR: Incorrect statement found. Probably incorrectly formatted test step.")
+
+
+            testObj.append(statement)
 
         else:
-            if sigID not in missingSignals:
-                missingSignals.append(sigID)
+            if sigID[0] not in missingSignals:
+                missingSignals.append(sigID[0])
             
         return None
     
     # RAMP step handling
     elif func_type == "Ramp":
-            
-            sigID = extractSignalID(line).lower()
-            (f_arg, f_grad) = extractArg(func_type, line)
+
+            line = line.split("|")[2].lower()
+
+            (sigID, line_no_signals) = extractSignalID(line)
+
+            line_no_signals = "".join(line_no_signals)
+
+            (f_arg, f_grad) = extractArg(func_type, line_no_signals)
                 
             # Check if the signals list was already populated.
             if len(signals) > 0:
 
                 # Add the function to the test body
-                testObj.append(f"{f_interface} {signals[sigID]} to {f_arg} with {f_grad}/s")
+                testObj.append(f"{f_interface} {signals[sigID[0]]} to {f_arg} with {f_grad}/s")
                 
             else:
 
                 # Add the signal to the missingSignals list
-                if sigID not in missingSignals:
-                    missingSignals.append(sigID)
+                if sigID[0] not in missingSignals:
+                    missingSignals.append(sigID[0])
                 
                 
         
