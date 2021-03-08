@@ -100,7 +100,7 @@ class Application(tk.Frame):
             # Loop through all the lines in the testcase
             for line in TC:
 
-#                 print(line)
+                print(line)
                 
                 if line == '\n':
                     continue
