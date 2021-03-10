@@ -2,9 +2,9 @@ import tkinter as tk
 from tkinter import filedialog as fd
 from tkinter import simpledialog as sd
 import helper_functions as H
-import xml.etree.ElementTree as ET
 import pprint as pp
 import json
+import os
 import os.path
 
 
@@ -22,7 +22,7 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         
-        self.field_selOutputPath = tk.Entry()        
+        # self.field_selOutputPath = tk.Entry()        
         self.read_outputPath()
         self.but_selTestSpec = tk.Button(text="Select Test Specification file (*.md)", command=self.read_testSpec, height=3, width=35, justify='center', relief='raised' )
         self.but_selTestSpec.pack()
@@ -30,7 +30,7 @@ class Application(tk.Frame):
 
     def read_testSpec(self):
 
-        self.filename = fd.askopenfilename()
+        self.filename = fd.askopenfilename(filetypes=[("Test Specification Files","*.md")])
 
         # Extract testcases from file and store them in an array
         self.parse_testSpec()
@@ -50,7 +50,8 @@ class Application(tk.Frame):
 
     def read_outputPath(self):
         
-        self.outputPath = sd.askstring(title="Output Path", prompt="Enter output path")
+        # self.outputPath = sd.askstring(title="Output Path", prompt="Enter output path")
+        self.outputPath = tk.filedialog.askdirectory(title="Select Output Path", initialdir=os.getcwd() , mustexist=True)
         
 
         if self.outputPath is not None:
@@ -157,6 +158,9 @@ class Application(tk.Frame):
             # Load the file and extract the signal dictionary
             with open('signals.json', 'r') as json_file:
                 self.signals = json.load(json_file)
+
+                # Convert all the keys into lowercase
+                self.signals = {k.lower(): v for k,v in self.signals.items()}
                 print(f"DEBUG: loaded signals: {self.signals}")
         else:
         
@@ -171,7 +175,7 @@ class Application(tk.Frame):
 
             # Dump the signal dictionary to a file
             with open('signals.json', 'w') as file:
-                 file.write(json.dumps(self.signals)) # use `json.loads` to do the reverse
+                 file.write(json.dumps(self.signals))
                 
             print("DEBUG: Dumped signals to file signals.json.")
 
