@@ -8,11 +8,11 @@ header_patterns = [[r'> ### ', r'>### '],
 arg_patterns = ['to', '=', 'for']
                 
 
-constants = {'INACTIVE' : 0, 
-             'ACTIVE' : 1, 
-             'TRUE' : 1, 
-             'FALSE' : 0,
-             '1B DOWN ALLOWED' : 1}
+constants = {'INACTIVE' : '0', 
+             'ACTIVE' : '1', 
+             'TRUE' : '1', 
+             'FALSE' : '0',
+             '1B DOWN ALLOWED' : '1'}
 
 operators = {'/' : operator.truediv,
              '*' : operator.mul,
@@ -104,6 +104,15 @@ def searchPattern(line):
 
     return listOfNumbers
 
+def searchConstants(line):
+
+    for c, v in constants.items():
+        # print(f"DEBUG: searching for constant: {c} in {line}")
+        if c.lower() in line:
+            return v
+
+    return None
+
 def extractArg(type, line):
     
     # In case of a Check statement, search in the third column
@@ -140,6 +149,13 @@ def extractArg(type, line):
     if len(m) > 0:
         return m
     else:
+
+        # Check is there is any constant 
+        c = searchConstants(line)
+
+        if c: 
+            return c
+        
         # No argument was found
         # This is a problem for Set, but OK for Run and some cases of Check (sig1 = sig2)
         return None
@@ -465,8 +481,7 @@ def write_TCtoFile(test_name, test_obj, output_path):
 
     filename = f"{output_path}/{test_name}.TPTTest"
     
-#     f = open(f"{test_name}.TPTTest", "a")
-    f = open(filename,"a")
+    f = open(filename,"w")
 
     for line in test_obj:    
         f.write(line + "\n")
