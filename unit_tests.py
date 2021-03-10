@@ -31,7 +31,8 @@ class TestHelperFunctions(unittest.TestCase):
                     "| 9. | Run component until `sig1` = 60 | - |",
                     "| 10. | Run component for 100 ms | - |",
                     "| 10. | Run the component in cyclic run mode | - |",
-                    "| >> | >>>> Comment text <<<< | << |"
+                    "| >> | >>>> Comment text <<<< | << |",
+                    "| 10. | Ramp `relative load` to 96 (value calculated eq. A) with 6/s"
         ]
 
         expected_outputs = [
@@ -46,7 +47,8 @@ class TestHelperFunctions(unittest.TestCase):
                                 ["Wait until aaa == 60.0"],
                                 ["Wait 100.0ms"],
                                 ["Wait 40ms"],
-                                ["//  >>>> Comment text <<<< "]
+                                ["//  >>>> Comment text <<<< "],
+                                ["Ramp ddd to 96.0 with 6.0/s"]
         ]
 
 
