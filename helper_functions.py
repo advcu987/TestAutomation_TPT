@@ -1,7 +1,7 @@
 import re
 import operator
 
-header_patterns = [[r'> ### ', r'>### '], 
+header_patterns = [[r'>### '], 
                   [r'Pre-condition', r'Precondition'], 
                   [r'Test procedure']]
 
